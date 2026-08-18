@@ -4,34 +4,22 @@ import { validateLog } from "../validators/logValidator.js";
 import { insertLogs } from "../database/logs.js";
 import { getLogs } from "../database/queryLogs.js";
 
-import {
-  decodeCursor,
-  encodeCursor,
-} from "../utils/cursor.js";
+import { decodeCursor, encodeCursor } from "../utils/cursor.js";
 
 const router = Router();
 
-const allowedLevels = new Set([
-  "debug",
-  "info",
-  "warn",
-  "error",
-]);
+const allowedLevels = new Set(["debug", "info", "warn", "error"]);
 
 const DEFAULT_LIMIT = 100;
-const MAX_LIMIT = 100;
+const MAX_LIMIT = 1000;
 
 router.get("/", async (req, res) => {
   try {
     const service =
-      typeof req.query.service === "string"
-        ? req.query.service
-        : undefined;
+      typeof req.query.service === "string" ? req.query.service : undefined;
 
     const level =
-      typeof req.query.level === "string"
-        ? req.query.level
-        : undefined;
+      typeof req.query.level === "string" ? req.query.level : undefined;
 
     const since =
       typeof req.query.since === "string"
@@ -43,63 +31,39 @@ router.get("/", async (req, res) => {
         ? new Date(req.query.until)
         : undefined;
 
-    const q =
-      typeof req.query.q === "string"
-        ? req.query.q
-        : undefined;
+    const q = typeof req.query.q === "string" ? req.query.q : undefined;
 
     const limit =
-      req.query.limit === undefined
-        ? DEFAULT_LIMIT
-        : Number(req.query.limit);
+      req.query.limit === undefined ? DEFAULT_LIMIT : Number(req.query.limit);
 
     const cursor =
-      typeof req.query.cursor === "string"
-        ? req.query.cursor
-        : undefined;
+      typeof req.query.cursor === "string" ? req.query.cursor : undefined;
 
-    if (
-      level !== undefined &&
-      !allowedLevels.has(level)
-    ) {
+    if (level !== undefined && !allowedLevels.has(level)) {
       return res.status(400).json({
         error: `invalid level: '${level}'`,
       });
     }
 
-    if (
-      since &&
-      Number.isNaN(since.getTime())
-    ) {
+    if (since && Number.isNaN(since.getTime())) {
       return res.status(400).json({
         error: "Invalid 'since' timestamp",
       });
     }
 
-    if (
-      until &&
-      Number.isNaN(until.getTime())
-    ) {
+    if (until && Number.isNaN(until.getTime())) {
       return res.status(400).json({
         error: "Invalid 'until' timestamp",
       });
     }
 
-    if (
-      since &&
-      until &&
-      until < since
-    ) {
+    if (since && until && until < since) {
       return res.status(400).json({
         error: "'until' cannot be earlier than 'since'",
       });
     }
 
-    if (
-      !Number.isInteger(limit) ||
-      limit < 1 ||
-      limit > MAX_LIMIT
-    ) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_LIMIT) {
       return res.status(400).json({
         error: `limit must be an integer between 1 and ${MAX_LIMIT}`,
       });
@@ -119,9 +83,7 @@ router.get("/", async (req, res) => {
 
     const attributes: Record<string, string> = {};
 
-    for (const [key, value] of Object.entries(
-      req.query,
-    )) {
+    for (const [key, value] of Object.entries(req.query)) {
       if (!key.startsWith("attr.")) {
         continue;
       }
@@ -156,15 +118,12 @@ router.get("/", async (req, res) => {
 
     const hasMore = rows.length > limit;
 
-    const resultLogs = hasMore
-      ? rows.slice(0, limit)
-      : rows;
+    const resultLogs = hasMore ? rows.slice(0, limit) : rows;
 
     let nextCursor: string | null = null;
 
     if (hasMore) {
-      const lastLog =
-        resultLogs[resultLogs.length - 1];
+      const lastLog = resultLogs[resultLogs.length - 1];
 
       nextCursor = encodeCursor({
         timestamp: lastLog.timestamp.toISOString(),
@@ -177,10 +136,7 @@ router.get("/", async (req, res) => {
       next_cursor: nextCursor,
     });
   } catch (error) {
-    console.error(
-      "Failed to fetch logs:",
-      error,
-    );
+    console.error("Failed to fetch logs:", error);
 
     return res.status(500).json({
       error: "Failed to fetch logs",
@@ -191,10 +147,7 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   const body = req.body;
 
-  if (
-    !body ||
-    !Array.isArray(body.logs)
-  ) {
+  if (!body || !Array.isArray(body.logs)) {
     return res.status(400).json({
       error: "Request must contain a logs array",
     });
@@ -230,10 +183,7 @@ router.post("/", async (req, res) => {
     try {
       await insertLogs(validLogs);
     } catch (error) {
-      console.error(
-        "Failed to insert logs:",
-        error,
-      );
+      console.error("Failed to insert logs:", error);
 
       return res.status(500).json({
         error: "Failed to store logs",

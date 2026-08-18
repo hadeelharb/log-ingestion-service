@@ -65,6 +65,10 @@ async function main() {
 
   console.log("Running API smoke tests...\n");
 
+  // 1. Health
+  // waitForHealth() already verified that /health is ready.
+  console.log("PASS: GET /health returns 200");
+
   // 2. Valid ingestion
   const ingest = await request("/logs", {
     method: "POST",
@@ -91,7 +95,7 @@ async function main() {
 
   assert(ingest.body.accepted === 1, "POST /logs accepts one valid log");
 
-  // 3. Invalid entry + valid entry
+  // 3. Partial batch acceptance
   const mixed = await request("/logs", {
     method: "POST",
     headers: {
@@ -138,7 +142,22 @@ async function main() {
     "GET /logs returns next_cursor",
   );
 
-  // 5. Invalid limit
+  // 5. Valid maximum limit
+  const maxLimit = await request("/logs?limit=1000");
+
+  assert(maxLimit.status === 200, "limit=1000 is accepted");
+
+  // 6. Limit above maximum
+  const overMaxLimit = await request("/logs?limit=1001");
+
+  assert(overMaxLimit.status === 400, "limit=1001 is rejected");
+
+  assert(
+    typeof overMaxLimit.body.error === "string",
+    "limit=1001 returns an error object",
+  );
+
+  // 7. Invalid limit
   const invalidLimit = await request("/logs?limit=0");
 
   assert(invalidLimit.status === 400, "Invalid limit returns 400");
@@ -148,17 +167,22 @@ async function main() {
     "Invalid limit returns an error object",
   );
 
-  // 6. Invalid level
+  // 8. Invalid timestamp
+  const invalidSince = await request("/logs?since=not-a-date");
+
+  assert(invalidSince.status === 400, "Invalid since timestamp returns 400");
+
+  // 9. Invalid level
   const invalidLevel = await request("/logs?level=critical");
 
   assert(invalidLevel.status === 400, "Unsupported level returns 400");
 
-  // 7. Invalid cursor
+  // 10. Invalid cursor
   const invalidCursor = await request("/logs?cursor=not-a-valid-cursor");
 
   assert(invalidCursor.status === 400, "Invalid cursor returns 400");
 
-  // 8. Malformed JSON
+  // 11. Malformed JSON
   const malformed = await request("/logs", {
     method: "POST",
     headers: {
@@ -169,7 +193,14 @@ async function main() {
 
   assert(malformed.status === 400, "Malformed JSON returns 400");
 
-  // 9. Aggregation
+  // 12. until earlier than since
+  const invalidRange = await request(
+    "/logs?since=2026-08-10T00:00:00Z&until=2026-08-01T00:00:00Z",
+  );
+
+  assert(invalidRange.status === 400, "until earlier than since returns 400");
+
+  // 13. Aggregation
   const aggregate = await request(
     "/logs/aggregate?since=2026-08-01T00:00:00Z&until=2026-08-20T00:00:00Z&bucket=1d",
   );
@@ -178,12 +209,39 @@ async function main() {
 
   assert(Array.isArray(aggregate.body.buckets), "Aggregation returns buckets");
 
-  // 10. Aggregation grouping
-  const grouped = await request(
+  // 14. Aggregation grouped by service
+  const groupedService = await request(
     "/logs/aggregate?since=2026-08-01T00:00:00Z&until=2026-08-20T00:00:00Z&bucket=1d&group_by=service",
   );
 
-  assert(grouped.status === 200, "Aggregation supports group_by=service");
+  assert(
+    groupedService.status === 200,
+    "Aggregation supports group_by=service",
+  );
+
+  // 15. Aggregation grouped by level
+  const groupedLevel = await request(
+    "/logs/aggregate?since=2026-08-01T00:00:00Z&until=2026-08-20T00:00:00Z&bucket=1d&group_by=level",
+  );
+
+  assert(groupedLevel.status === 200, "Aggregation supports group_by=level");
+
+  // 16. Invalid aggregation bucket
+  const invalidBucket = await request(
+    "/logs/aggregate?since=2026-08-01T00:00:00Z&until=2026-08-20T00:00:00Z&bucket=10m",
+  );
+
+  assert(
+    invalidBucket.status === 400,
+    "Invalid aggregation bucket returns 400",
+  );
+
+  // 17. Invalid aggregation group
+  const invalidGroup = await request(
+    "/logs/aggregate?since=2026-08-01T00:00:00Z&until=2026-08-20T00:00:00Z&bucket=1d&group_by=message",
+  );
+
+  assert(invalidGroup.status === 400, "Invalid aggregation group returns 400");
 
   console.log("\nAll API smoke tests passed.");
 }
