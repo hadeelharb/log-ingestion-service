@@ -10,3 +10,5 @@ dist/
 
 .DS_Store
 benchmark-report*.json
+
+.load-generator.compose.override.yml
