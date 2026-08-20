@@ -1,7 +1,6 @@
 services:
   app:
     build: .
-    container_name: log-service
 
     ports:
       - "8080:8080"
@@ -24,7 +23,6 @@ services:
 
   db:
     image: postgres:17
-    container_name: logs-db
     restart: always
 
     command:
